@@ -64,35 +64,107 @@ A_lqg = [A -B*K; S*C A-B*K-S*C];
 B_lqg = [eye(32), zeros(32, 16); zeros(32) S];
 lqg_sys = ss(A_lqg, B_lqg, eye(64), zeros(64,48));
 
-%linear simulation
+%% linear simulation
 t_sim= 0:0.01:30;
 %noise=zeros(numel(t_sim), 48);
 sigma_process = 0.01;
 sigma_measure = 0.01;
 
+%process and measurement noise
 v1 = sigma_process*randn(numel(t_sim),32);
 v2 = sigma_measure*randn(numel(t_sim),16);
 
 noise=[v1 v2];
 
-
-
+%initial conditions
 xe = [delta0; omega0];
-
 x0 = xe;
 x0(1) = x0(1) + deg2rad(2);
-
 xdev0 = x0 - xe;
 y_hat0=zeros(32,1);
 
 y_kf=lsim(lqg_sys, noise, t_sim, [xdev0;y_hat0]);
+figure;
 plot(t_sim, y_kf);
 
+%% nonlinear simulation
+%initial conditions
+xe = [delta0; omega0];
+x0 = xe;
+x0(1) = x0(1) + deg2rad(2);
+xdev0 = x0 - xe;
+y_hat0=zeros(32,1);
+t_sim= 0:0.01:30;
+
+f = @(t,x) f_lqg(t,x,M,d,W,ei,ej, ...
+    u0,K,S,A,B,C, xe);
+opts = odeset('RelTol',1e-8,'AbsTol',1e-10);
+[t,x] = ode45(f,t_sim,[x0 y_hat0], opts);
+
+%plot angle deviations
+delta = x(:,1:n);
+omega = x(:,n+1:2*n);
+
+figure;
+subplot(1,2,1);
+plot(t,rad2deg(delta-delta0'),'LineWidth',1.2);
+grid on;
+xlabel('Time (s)');
+ylabel('Angle Deviation (deg)');
+title('LQG Controlled Rotor Angles');
+
+%plot frequency deviations
+subplot(1,2,2);
+plot(t,omega/(2*pi),'LineWidth',1.2);
+hold off;
+xlabel('Time (s)');
+ylabel('Frequency Deviation (Hz)');
+title('LQG Controlled Frequency');
 
 
 
+function dz = f_lqg(~,z,M,d,W,ei,ej,u0,K,S,A,B,C,xe)
 
+n = length(M);
 
+% Actual state and estimated deviation state
+x = z(1:2*n);
+xhat = z(2*n+1:4*n);
 
+delta = x(1:n);
+omega = x(n+1:2*n);
 
+Pe = zeros(n,1);
 
+for k = 1:length(ei)
+    i = ei(k);
+    j = ej(k);
+
+    Pij = sin(delta(i)-delta(j))/W(i,j);
+
+    Pe(i) = Pe(i) + Pij;
+    Pe(j) = Pe(j) - Pij;
+end
+
+% Deviation from nominal equilibrium
+xdev = x-xe;
+
+% LQG control
+du = -K*xhat;
+
+% Total mechanical input
+u = u0 + du;
+
+% Nonlinear plant dynamics
+ddelta = omega;
+domega = (u-d.*omega-Pe)./M;
+
+dx = [ddelta; domega];
+
+% Kalman filter
+y = C*xdev;
+dxhat = A*xhat + B*du + S*(y-C*xhat);
+
+% Combined dynamics
+dz = [dx; dxhat];
+end

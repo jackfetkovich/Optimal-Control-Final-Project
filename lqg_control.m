@@ -83,9 +83,9 @@ x0(1) = x0(1) + deg2rad(2);
 xdev0 = x0 - xe;
 y_hat0=zeros(32,1);
 
-y_kf=lsim(lqg_sys, noise, t_sim, [xdev0;y_hat0]);
-figure;
-plot(t_sim, y_kf);
+%y_kf=lsim(lqg_sys, noise, t_sim, [xdev0;y_hat0]);
+%figure;
+%plot(t_sim, y_kf);
 
 %% nonlinear simulation
 %initial conditions
@@ -105,22 +105,32 @@ opts = odeset('RelTol',1e-8,'AbsTol',1e-10);
 delta = x(:,1:n);
 omega = x(:,n+1:2*n);
 
+%figure;
+%subplot(1,2,1);
+%plot(t,rad2deg(delta-delta0'),'LineWidth',1.2);
+%grid on;
+%xlabel('Time (s)');
+%ylabel('Angle Deviation (deg)');
+%title('LQG Controlled Rotor Angles');
+
+%plot frequency per neighborhood
 figure;
-subplot(1,2,1);
-plot(t,rad2deg(delta-delta0'),'LineWidth',1.2);
-grid on;
-xlabel('Time (s)');
-ylabel('Angle Deviation (deg)');
-title('LQG Controlled Rotor Angles');
-
-%plot frequency deviations
-subplot(1,2,2);
-plot(t,omega/(2*pi),'LineWidth',1.2);
-hold off;
-xlabel('Time (s)');
-ylabel('Frequency Deviation (Hz)');
-title('LQG Controlled Frequency');
-
+for i=1:numel(areas)
+    a = areas{i};
+    len = numel(a);
+    
+    nbrhd_omegas = zeros(size(omega, 1), len);
+    for j=1:len
+        nbrhd_omegas(:, j) = omega(:, a(j));
+    end
+    subplot(2,2,i);
+    plot(t,nbrhd_omegas/(2*pi),'LineWidth',1.2);
+    legend("Generator " + string(a), 'Location', 'best');
+    hold off;
+    xlabel('Time (s)');
+    ylabel('Frequency Deviation (Hz)');
+    title("Neighborhood " + i + " Frequency Deviation");
+end
 
 
 function dz = f_lqg(~,z,M,d,W,ei,ej,u0,K,S,A,B,C,xe)

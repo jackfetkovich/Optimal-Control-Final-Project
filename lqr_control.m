@@ -48,15 +48,10 @@ title('LQR Controlled Rotor Angles');
 % 8. Plot frequency deviations
 subplot(1,2,2);
 plot(t,omega/(2*pi),'LineWidth',1.2);
-hold on;
-yline(0.1*60*2*pi,'k--','Reference','LineWidth',1.5);
 hold off;
-grid on;
 xlabel('Time (s)');
 ylabel('Frequency Deviation (Hz)');
 title('LQR Controlled Frequency');
-
-
 
 function dx = f_lqr(~,x,M,d,W,ei,ej,u0,K,S,R,B,xe)
 

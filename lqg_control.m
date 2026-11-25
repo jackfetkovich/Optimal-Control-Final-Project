@@ -1,0 +1,98 @@
+clc; clear; close all;
+
+run("system_model.m");
+run("linear_model.m");
+
+% generate C matrix
+observed_gens = [1 4 5 7 9 10 13 14];
+C = zeros(16,32);
+for i=1:8
+    C(i, observed_gens(i))=1;
+    C(i+8, observed_gens(i)+16)=1;
+end
+%construct Q 
+alpha=1; %neighborhood angle deviations
+beta=1; %boundary angle deviations
+gamma=1; %frequency deviations
+Q = zeros(32);
+
+%neighborhood angle deviation cost
+for k=1:numel(areas)
+    a = areas{k};
+    len = numel(a);
+    for i = 1:len
+        for j=i+1:len
+            temp=zeros(1,32);
+            temp(a(i))=1;
+            temp(a(j))=-1;
+            Q = Q + alpha*(temp'*temp);
+        end
+    end
+end
+
+%boundary angle deviations
+bound_gens = [4 5 10 13];
+len=numel(bound_gens);
+for i=1:len
+    for j=i+1:len
+        temp=zeros(1,32);
+        temp(bound_gens(i))=1;
+        temp(bound_gens(j))=-1;
+        Q=Q+beta*(temp'*temp);
+    end
+end
+
+%frequency deviation cost
+for i=1:16
+    temp=zeros(1,32);
+    temp(i+16)=1;
+    Q = Q+gamma*(temp'*temp);
+end
+
+%R matrix
+R=eye(16);
+w1=eye(32);
+w2=eye(16);
+
+[K,~,~] = lqr(A,B,Q,R);
+
+[S,~,~] = lqr(A', C', w1, w2); %calculate S
+S=S';
+
+%model lqg system
+A_lqg = [A -B*K; S*C A-B*K-S*C];
+B_lqg = [eye(32), zeros(32, 16); zeros(32) S];
+lqg_sys = ss(A_lqg, B_lqg, eye(64), zeros(64,48));
+
+%linear simulation
+t_sim= 0:0.01:30;
+%noise=zeros(numel(t_sim), 48);
+sigma_process = 0.01;
+sigma_measure = 0.01;
+
+v1 = sigma_process*randn(numel(t_sim),32);
+v2 = sigma_measure*randn(numel(t_sim),16);
+
+noise=[v1 v2];
+
+
+
+xe = [delta0; omega0];
+
+x0 = xe;
+x0(1) = x0(1) + deg2rad(2);
+
+xdev0 = x0 - xe;
+y_hat0=zeros(32,1);
+
+y_kf=lsim(lqg_sys, noise, t_sim, [xdev0;y_hat0]);
+plot(t_sim, y_kf);
+
+
+
+
+
+
+
+
+
